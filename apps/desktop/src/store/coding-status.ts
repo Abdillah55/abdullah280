@@ -3,8 +3,16 @@ import { atom, computed, type ReadableAtom } from 'nanostores'
 import type { HermesGitWorktree, HermesRepoStatus } from '@/global'
 import { desktopGit } from '@/lib/desktop-git'
 
-import { $worktreeRefreshToken } from './projects'
+import {
+  $projectScope,
+  $projectTree,
+  $worktreeDialog,
+  $worktreeRefreshToken,
+  ALL_PROJECTS,
+  projectRootCwd
+} from './projects'
 import { $busy, $currentCwd, $selectedStoredSessionId } from './session'
+import { $focusedRuntimeId, $sessionStates } from './session-states'
 import { $workspaceChangeTick } from './workspace-events'
 
 // Live working-tree status for every git surface on screen — the data backbone
@@ -70,6 +78,32 @@ export function repoStatusForCwd(cwd?: null | string): ReadableAtom<HermesRepoSt
   }
 
   return $slice
+}
+
+/**
+ * Is this path a git repo? Reads the probe cache, probing on demand when it has
+ * no entry. The validation rung for anything picking a repo out of candidate
+ * FOLDERS — a path in a project row is not evidence git can branch from it.
+ * False on a remote backend, where there's no local git truth to probe.
+ */
+export async function isGitRepoPath(cwd: string): Promise<boolean> {
+  const key = normalizeCwd(cwd)
+
+  if (!key) {
+    return false
+  }
+
+  if (key in $repoStatusByCwd.get()) {
+    return $repoStatusByCwd.get()[key] !== null
+  }
+
+  if (!desktopGit()?.repoStatus) {
+    return false
+  }
+
+  await refreshRepoStatus(key)
+
+  return ($repoStatusByCwd.get()[key] ?? null) !== null
 }
 
 /** Reactive worktree list for one repo cwd. Stable per cwd. */
@@ -425,4 +459,46 @@ export function _resetCodingStatusForTests(): void {
   $repoStatusByCwd.set({})
   $repoWorktreesByCwd.set({})
   $repoStatusLoading.set(false)
+}
+
+// ── New-worktree target resolution ───────────────────────────────────────────
+// Lives here, not in projects.ts: picking the target reads BOTH project state
+// and git truth, and coding-status already depends on projects (the reverse
+// edge would be a cycle).
+
+// Which repo a new worktree is cut from: the focused surface's cwd, else the
+// entered project's root — only things the user is pointing at. No "grab some
+// other project's repo" rung: that branches somewhere they never selected.
+//
+// Existence is not proof (a project root need not be a repo), so each candidate
+// is validated against the probe cache. Being the sole authority is why the
+// hotkey no longer pre-gates on `$repoStatus` — ⌘⇧B now works from a detached
+// session inside a project. '' means no repo in reach, which is a no-op, not an
+// error: a worktree only exists inside a repo.
+export async function resolveWorktreeRepoPath(): Promise<string> {
+  const runtimeId = $focusedRuntimeId.get()
+  const scope = $projectScope.get()
+
+  const candidates = [
+    runtimeId ? ($sessionStates.get()[runtimeId]?.cwd ?? '') : '',
+    scope === ALL_PROJECTS ? '' : projectRootCwd($projectTree.get().find(node => node.id === scope))
+  ]
+
+  for (const candidate of candidates) {
+    const path = candidate.trim()
+
+    if (path && (await isGitRepoPath(path))) {
+      return path
+    }
+  }
+
+  return ''
+}
+
+export async function openWorktreeDialog(options?: { base?: string; repoPath?: string }): Promise<void> {
+  const repoPath = options?.repoPath?.trim() || (await resolveWorktreeRepoPath())
+
+  if (repoPath) {
+    $worktreeDialog.set({ base: options?.base, repoPath })
+  }
 }

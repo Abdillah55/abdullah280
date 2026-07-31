@@ -165,7 +165,7 @@ export function exitProjectScope(): void {
 // one. Empty for the path-less Home bucket. (The sidebar's `projectTreeCwd` is
 // the same rule over the same tree — this is the store-side copy so the store
 // doesn't reach into the sidebar's React module.)
-const projectRootCwd = (project: SidebarProjectTree | undefined): string =>
+export const projectRootCwd = (project: SidebarProjectTree | undefined): string =>
   (project?.path || project?.repos.find(repo => repo.path)?.path || '').trim()
 
 // ⌘K "go to project": flip the sidebar into grouped mode and enter the project
@@ -1034,15 +1034,26 @@ export interface StartWorkSessionRequest {
 
 export const $startWorkSessionRequest = atom<StartWorkSessionRequest | null>(null)
 
-// Keyboard-driven "spin up a new worktree" intent. The composer's coding rail
-// owns the name dialog (it has the active repo + branch context), so a global
-// hotkey just bumps this token; the rail opens its branch-off dialog in
-// response. A monotonic token re-fires even on repeat presses. No-ops off a
-// repo (the rail isn't mounted), which is the right "nothing to branch" outcome.
-export const $newWorktreeRequest = atom(0)
+// Keyboard/menu-driven "spin up a new worktree" intent. ONE dialog is mounted
+// (in the sidebar, beside ProjectDialog) and reads this atom, mirroring
+// $projectDialog. It used to be a monotonic token every mounted coding rail
+// subscribed to, which meant N composers on screen => N stacked dialogs from a
+// single ⌘⇧B (the dialog you dismissed revealed an identical empty one behind
+// it). A single mount cannot double-open.
+//
+// `repoPath` is resolved at OPEN time (see resolveWorktreeRepoPath) rather than
+// read from whichever rail happened to handle the key, so the dialog always
+// targets the surface the user is actually looking at.
+export interface WorktreeDialogState {
+  repoPath: string
+  /** Pre-selected base branch, from "branch off from X" menus. */
+  base?: string
+}
 
-export function requestNewWorktree(): void {
-  $newWorktreeRequest.set($newWorktreeRequest.get() + 1)
+export const $worktreeDialog = atom<null | WorktreeDialogState>(null)
+
+export function closeWorktreeDialog(): void {
+  $worktreeDialog.set(null)
 }
 
 let startWorkToken = 0

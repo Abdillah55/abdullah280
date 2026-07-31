@@ -27,11 +27,11 @@ vi.mock('@/store/projects', () => ({
   revealPath: vi.fn()
 }))
 
-// StartWorkButton renders the full WorktreeDialog (branch picker, git combobox,
-// etc.) as soon as it's open — none of that is relevant to the tooltip fix, so
-// stub it to keep this test focused on the trigger button.
-vi.mock('./worktree-dialog', () => ({
-  WorktreeDialog: () => null
+// StartWorkButton no longer renders a dialog — it publishes intent to the
+// single WorktreeDialog mounted in the sidebar. Stub the store action so the
+// button stays isolated from the resolver's git probes.
+vi.mock('@/store/coding-status', () => ({
+  openWorktreeDialog: vi.fn()
 }))
 
 const tipTrigger = (button: HTMLElement) => button.closest('[data-slot="tooltip-trigger"]')
@@ -73,7 +73,7 @@ describe('WorkspaceMenu', () => {
 
 describe('StartWorkButton', () => {
   it('wraps the git-branch trigger in a Tip', () => {
-    render(<StartWorkButton onStarted={vi.fn()} repoPath="/repo" />)
+    render(<StartWorkButton repoPath="/repo" />)
 
     const button = screen.getByRole('button', { name: 'New worktree' })
     expect(tipTrigger(button)).toBeTruthy()
