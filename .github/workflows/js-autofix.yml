@@ -96,10 +96,12 @@ jobs:
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-
+      # Node 22 is baked into nousresearch/nous-gke-runner (see
+      # hermes-agent-ci-infra runner/Dockerfile, which pins NodeSource 22 and
+      # asserts `node --version | grep -q '^v22\.'` at build time). Every
+      # setup-node call site here asked for exactly node-version: 22 with no
+      # caching or registry config, so the step only re-downloaded a toolchain
+      # the image already ships.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: npm-cache
         with:
