@@ -62,6 +62,7 @@ export function preventCloseButtonAutoFocus(event: Event) {
 
 function DialogContent({
   className,
+  bodyClassName,
   children,
   showCloseButton = true,
   fitContent = false,
@@ -75,6 +76,10 @@ function DialogContent({
   // default fixed `max-w-lg`. For content that has no intrinsic width (grids,
   // full-width inputs) pair it with a `min-w-*` in `className`.
   fitContent?: boolean
+  // Layout/scroll classes for the inner body box (padding, gap, display,
+  // overflow). `className` styles the OUTER shell — position, size, border,
+  // background. See the split note on the scroll box below.
+  bodyClassName?: string
   // A dialog-level notice rendered as a banner flush to the bottom edge (tinted,
   // inherited bottom radius) so it reads as part of the dialog, not a floating
   // alert. Falsy → no banner. Tone picks the colour.
@@ -123,7 +128,10 @@ function DialogContent({
         <DialogOverlay />
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-1/2 top-1/2 z-(--z-modal) pointer-events-auto flex max-h-[85vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-(--ui-chat-bubble-background) text-[length:var(--conversation-text-font-size)] text-foreground shadow-nous duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+            // Same split as the plain variant: the shell must NOT clip, or it
+            // crops popovers portalled into it. The banner gets its own
+            // `overflow-hidden` below so its square corners still round off.
+            'fixed left-1/2 top-1/2 z-(--z-modal) pointer-events-auto flex max-h-[85vh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-(--ui-chat-bubble-background) text-[length:var(--conversation-text-font-size)] text-foreground shadow-nous duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
             widthClass,
             className,
             // Callers often pass `gap-*` for the no-banner grid layout — suppress
@@ -138,13 +146,15 @@ function DialogContent({
           <DialogPortalContainerContext.Provider value={contentNode}>
             {/* Scroll lives on an inner box so this shell keeps a painted bottom radius. */}
             <div className="relative z-10 overflow-hidden rounded-xl border border-b-0 border-(--stroke-nous) bg-(--ui-chat-bubble-background)">
-              <div className="grid max-h-[calc(85vh-5rem)] min-h-0 gap-3 overflow-y-auto p-4">{children}</div>
+              <div className={cn('grid max-h-[calc(85vh-5rem)] min-h-0 gap-3 overflow-y-auto p-4', bodyClassName)}>
+                {children}
+              </div>
             </div>
             <div
               className={cn(
                 // Overlap by one corner radius so the white bottom lobes read clearly
                 // over the tint instead of meeting it on a straight seam.
-                'relative z-0 -mt-[var(--radius-xl)] px-4 pb-2.5 pt-[calc(var(--radius-xl)+0.625rem)] text-center text-[length:var(--conversation-tool-font-size)] leading-relaxed shadow-[inset_0_7px_7px_-4px_rgb(0_0_0/0.28)]',
+                'relative z-0 -mt-[var(--radius-xl)] overflow-hidden rounded-b-xl px-4 pb-2.5 pt-[calc(var(--radius-xl)+0.625rem)] text-center text-[length:var(--conversation-tool-font-size)] leading-relaxed shadow-[inset_0_7px_7px_-4px_rgb(0_0_0/0.28)]',
                 DIALOG_BANNER_TONES[bannerTone]
               )}
               data-slot="dialog-banner"
@@ -164,10 +174,12 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          // Cap height at 85vh and let long content scroll inside the dialog
-          // instead of overflowing off-screen (long cron titles, tool detail
-          // dumps, etc.). Individual dialogs can still override via className.
-          'fixed left-1/2 top-1/2 z-(--z-modal) pointer-events-auto grid max-h-[85vh] -translate-x-1/2 -translate-y-1/2 gap-3 overflow-y-auto rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-4 text-[length:var(--conversation-text-font-size)] text-foreground shadow-nous duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          // The SHELL: position, size, skin. Deliberately has NO overflow of its
+          // own — it is the portal container for popovers opened inside the
+          // dialog (see DialogPortalContainerContext), and a clipping ancestor
+          // would crop them. Scrolling belongs to the body box below, so a tall
+          // dialog still scrolls while a Select/Popover escapes the scroll box.
+          'fixed left-1/2 top-1/2 z-(--z-modal) pointer-events-auto flex max-h-[85vh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) text-[length:var(--conversation-text-font-size)] text-foreground shadow-nous duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           widthClass,
           className
         )}
@@ -177,7 +189,12 @@ function DialogContent({
         {...props}
       >
         <DialogPortalContainerContext.Provider value={contentNode}>
-          {children}
+          {/* The BODY: layout + scroll. `min-h-0` lets it shrink inside the
+              shell's max-height so overflow scrolls here instead of pushing the
+              shell past the viewport. */}
+          <div className={cn('grid min-h-0 gap-3 overflow-y-auto rounded-[inherit] p-4', bodyClassName)}>
+            {children}
+          </div>
           {closeButton}
         </DialogPortalContainerContext.Provider>
       </DialogPrimitive.Content>
