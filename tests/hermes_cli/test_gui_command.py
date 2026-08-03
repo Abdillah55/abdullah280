@@ -121,11 +121,19 @@ def test_gui_install_env_prepends_managed_node_on_bare_path(tmp_path, monkeypatc
     install_ok = subprocess.CompletedProcess(["npm", "ci"], 0)
     launch_ok = subprocess.CompletedProcess(["hermes"], 0)
 
+    # A plain return_value rather than a fixed side_effect list: this test only
+    # cares about the env handed to the npm install, and pinning an exact
+    # sequence of subprocess.run calls makes it fail (StopIteration) whenever
+    # cmd_gui legitimately shells out one extra time — e.g. the Linux sandbox
+    # fixup, which fires on hosts where chrome-sandbox isn't already
+    # root-owned+4755. Assert on the install env, not on a call count.
     with patch("hermes_cli.main._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
          patch("hermes_cli.main._run_npm_install_deterministic", return_value=install_ok) as mock_install, \
          patch("hermes_cli.main._desktop_build_needed", return_value=True), \
          patch("hermes_cli.main._write_desktop_build_stamp"), \
-         patch("hermes_cli.main.subprocess.run", side_effect=[subprocess.CompletedProcess([], 0), launch_ok]), \
+         patch("hermes_cli.main._desktop_macos_relaunchable_fixup"), \
+         patch("hermes_cli.main._desktop_linux_sandbox_fixup", return_value=True), \
+         patch("hermes_cli.main.subprocess.run", return_value=launch_ok), \
          pytest.raises(SystemExit):
         cli_main.cmd_gui(_ns(skip_build=False))
 

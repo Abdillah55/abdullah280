@@ -82,6 +82,7 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    lines: list[str] = []
     for path in files:
         # POSIX separators so the output is safe to paste into a bash
         # command line on the Windows runner (Git Bash accepts them).
@@ -93,9 +94,20 @@ def main(argv: list[str]) -> int:
         try:
             rel = path.resolve().relative_to(repo_root)
         except ValueError:
-            print(path.as_posix())
+            lines.append(path.as_posix())
         else:
-            print(rel.as_posix())
+            lines.append(rel.as_posix())
+
+    # Write bytes with explicit LF rather than print(), which on Windows
+    # translates "\n" to "\r\n" in text mode. The consumer reads this list with
+    # ``$(cat ...)`` in bash, and word splitting uses IFS (space/tab/newline) —
+    # a CR is NOT a separator, so it stays glued to each path and pytest then
+    # fails with "file or directory not found: tests/...py" for a path that
+    # looks correct in the log because the CR is invisible. Emitting bytes makes
+    # the output identical on every host instead of depending on the platform's
+    # newline translation.
+    sys.stdout.buffer.write(b"".join(line.encode("utf-8") + b"\n" for line in lines))
+    sys.stdout.buffer.flush()
     return 0
 
 

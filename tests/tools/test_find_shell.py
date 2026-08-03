@@ -203,7 +203,7 @@ class TestMacosLoginShellSwallowRegression:
     invoked as a login shell (`-lic`) with stdin=/dev/null and a
     ~/.bash_profile that `exec`s zsh, silently swallows the command (exit 0,
     no output, no side effects). Prove (a) the bug exists with /bin/bash and
-    (b) the $SHELL (zsh) path _find_shell prefers does NOT swallow."""
+    (b) the zsh path _find_shell prefers does NOT swallow."""
 
     def _spawn_like_registry(self, shell, command, home, tmp_path):
         import subprocess
@@ -225,7 +225,15 @@ class TestMacosLoginShellSwallowRegression:
         home.mkdir()
         (home / ".bash_profile").write_text("exec /bin/zsh -l\n")
 
-        zsh = os.environ.get("SHELL") or "/bin/zsh"
+        # Use /bin/zsh explicitly rather than $SHELL. The reported bug is
+        # specifically "system bash 3.2 swallows, zsh does not", and $SHELL is
+        # not zsh everywhere this runs: GitHub's macOS runner exports
+        # SHELL=/bin/bash, which silently turned the control arm into a SECOND
+        # bash arm. It then swallowed (correctly, per the bug!) and the
+        # assertion read as "the fix path is broken" when nothing was broken.
+        # /bin/zsh is the macOS default login shell since Catalina and is
+        # present on every supported version.
+        zsh = "/bin/zsh"
         if not os.path.isfile(zsh):
             pytest.skip("no zsh available")
 
@@ -234,11 +242,11 @@ class TestMacosLoginShellSwallowRegression:
 
         # /bin/bash login shell: command is swallowed (file NOT created).
         self._spawn_like_registry("/bin/bash", f"echo x > {marker_bash}", home, tmp_path)
-        # zsh (the $SHELL _find_shell prefers): command runs (file created).
+        # zsh (what _find_shell prefers when $SHELL is zsh): command runs.
         self._spawn_like_registry(zsh, f"echo x > {marker_zsh}", home, tmp_path)
 
         # The FIX path (zsh) must run the command.
-        assert marker_zsh.exists(), "zsh ($SHELL) path must run the command"
+        assert marker_zsh.exists(), "zsh path must run the command"
 
         # Differential: when /bin/bash is the swallow-prone 3.x (macOS system
         # bash), the login-shell invocation must demonstrably FAIL to run the
