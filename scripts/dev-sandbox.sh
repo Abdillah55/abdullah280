@@ -571,7 +571,10 @@ else
 fi
 git --git-dir="$FAKE_REPO" symbolic-ref HEAD refs/heads/main
 if [ -n "$SNAPSHOT_REPO" ]; then
-  rm -rf -- "$SNAPSHOT_REPO"
+  # Best-effort: it is a mktemp directory the OS will reap, and failing the whole
+  # run over a leftover object file would be worse than leaking it. Concurrent
+  # git activity in the worktree can still be writing here as we delete.
+  rm -rf -- "$SNAPSHOT_REPO" 2>/dev/null || true
 fi
 if [ -n "$UPSTREAM_REPO" ]; then
   rm -rf -- "$UPSTREAM_REPO"
