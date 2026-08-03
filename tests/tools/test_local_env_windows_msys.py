@@ -265,11 +265,17 @@ class TestGitBashCoreutilsOnPath:
 
         dirs = _git_bash_bin_dirs()
 
+        # Compare separator-agnostically: the derivation uses os.path.join, so
+        # on real Windows these come back with backslashes ("/pg\\usr\\bin").
+        # The subject is WHICH dirs are derived and in what ORDER, not which
+        # separator the host's os.path uses.
+        norm = [d.replace("\\", "/") for d in dirs]
+
         # usr/bin is the load-bearing coreutils dir; mingw64 precedes it.
-        assert "/pg/usr/bin" in dirs
-        assert dirs.index("/pg/mingw64/bin") < dirs.index("/pg/usr/bin")
+        assert "/pg/usr/bin" in norm
+        assert norm.index("/pg/mingw64/bin") < norm.index("/pg/usr/bin")
         # Non-existent dirs (mingw32, usr/local/bin) are excluded.
-        assert "/pg/mingw32/bin" not in dirs
+        assert "/pg/mingw32/bin" not in norm
 
     @pytest.mark.linux_only
     def test_empty_off_windows(self, monkeypatch):

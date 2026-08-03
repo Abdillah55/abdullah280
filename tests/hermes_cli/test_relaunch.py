@@ -127,6 +127,13 @@ class TestRelaunch:
         that motivated it.
         """
         monkeypatch.setattr(relaunch_mod, "resolve_hermes_bin", lambda: r"C:\Users\test\hermes.exe")
+        # Pin sys.argv: relaunch() preserves inherited flags from the LIVE
+        # argv, so under pytest it happily inherited the runner's own
+        # "-m 'windows_only and not integration'" and the assertion below saw
+        # them in the child argv. Nothing to do with Windows — it only showed
+        # up here because this is the first lane that actually executes the
+        # test, and -m is how that lane selects it.
+        monkeypatch.setattr(relaunch_mod.sys, "argv", [r"C:\Users\test\hermes.exe"])
 
         import subprocess as _subprocess
 
