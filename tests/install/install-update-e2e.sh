@@ -72,6 +72,10 @@ export HERMES_DEV_SANDBOX_DIR="$SANDBOX_DIR_NAME"
 SANDBOX_ROOT="$REPO_ROOT/$SANDBOX_DIR_NAME"
 INSTALL_DIR="/home/hermes/.hermes/hermes-agent"   # user-level layout (sandbox default)
 FAKE_REMOTE="/work/repos/hermes-agent.git"
+# Only used to fetch an old install.sh for the flag probe below; the sandbox does
+# its own fetching. Same override dev-sandbox.sh honours, so a fork can retarget
+# both together.
+UPSTREAM_URL="${HERMES_DEV_SANDBOX_UPSTREAM:-https://github.com/NousResearch/hermes-agent.git}"
 
 # Installer transcripts live outside the sandbox root: the sandbox is recreated
 # and (unless --keep) deleted, and these logs are the most useful artifact when
@@ -141,6 +145,25 @@ fi
 rm -rf -- "$SANDBOX_ROOT"
 
 # ── helpers ────────────────────────────────────────────────────────────────
+# Does the installer at REF accept FLAG? Read it out of that ref's own
+# install.sh rather than assuming this checkout's flag set: the point of the
+# matrix is to install releases from months back, whose installers predate
+# options we take for granted.
+#
+# The ref may not be fetched locally (the sandbox fetches it itself), so fetch
+# just the one blob on demand. Failing to resolve it returns false, which only
+# costs us a slower install, never a wrong result.
+installer_supports() {
+  local ref="$1"
+  local flag="$2"
+  local script=""
+  script="$(git show "$ref:scripts/install.sh" 2>/dev/null)" || {
+    git fetch -q --depth 1 "$UPSTREAM_URL" "$ref" 2>/dev/null || return 1
+    script="$(git show FETCH_HEAD:scripts/install.sh 2>/dev/null)" || return 1
+  }
+  printf '%s' "$script" | grep -qF -- "$flag"
+}
+
 # Run the real install one-liner inside the sandbox. `ref` non-empty installs
 # that upstream commit and promotes THIS checkout to fake main afterwards,
 # leaving the state a user is in when an update is waiting; empty serves this
@@ -152,8 +175,17 @@ install_in_sandbox() {
   local log="$LOG_DIR/$tag.log"
   local args=(install --persistent)
   [ -n "$ref" ] && args+=(--install-ref "$ref")
+
+  # Installer flags have to match the installer being run, not this checkout's.
+  # Older releases reject options added later ("Unknown option: --skip-browser"),
+  # and this test deliberately installs releases from months back. --skip-setup
+  # goes back further than any tag we sample; anything newer is probed for.
+  local installer_flags=(--skip-setup)
+  if [ -z "$ref" ] || installer_supports "$ref" --skip-browser; then
+    installer_flags+=(--skip-browser)
+  fi
   # Sandbox flags must precede `--`; the rest goes to install.sh.
-  args+=(-- --skip-setup --skip-browser)
+  args+=(-- "${installer_flags[@]}")
 
   # Stream the installer's output to stdout AND keep a copy on disk. It is the
   # substance of this test -- a real install of uv, a managed Python, Node and

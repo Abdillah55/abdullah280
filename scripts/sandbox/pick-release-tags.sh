@@ -13,11 +13,16 @@
 # between (config-schema bumps, venv layout changes, dependency floors).
 #
 # Usage:
-#   scripts/sandbox/pick-release-tags.sh [--count N] [--remote URL]
+#   scripts/sandbox/pick-release-tags.sh [--count N] [--repo DIR]
 #
 #   --count   how many tags to emit (default 5, minimum 1). Fewer tags than
 #             requested emits all of them.
-#   --remote  repository to read tags from (default: the canonical upstream).
+#   --repo    repository to read tags from (default: this checkout).
+#
+# Reads tags from the local checkout, so it needs one fetched with tags
+# (actions/checkout with fetch-depth: 0, or `fetch-tags: true`). A shallow
+# checkout has no tags and this exits non-zero rather than silently emitting an
+# empty matrix.
 #
 # Only vYYYY.M.D[.N] release tags are considered; the repo also carries
 # backup/* and one-off tags that are not releases.
@@ -25,16 +30,19 @@
 set -euo pipefail
 
 COUNT=5
-REMOTE="https://github.com/NousResearch/hermes-agent.git"
+# Default to the repository containing this script, resolved through its real
+# path so a symlinked or copied script still reads the checkout it lives in
+# rather than whatever repo the caller happens to be standing in.
+REPO=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --count)
       [ "$#" -ge 2 ] || { echo 'error: --count needs a value' >&2; exit 1; }
       COUNT="$2"; shift 2 ;;
-    --remote)
-      [ "$#" -ge 2 ] || { echo 'error: --remote needs a value' >&2; exit 1; }
-      REMOTE="$2"; shift 2 ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    --repo)
+      [ "$#" -ge 2 ] || { echo 'error: --repo needs a value' >&2; exit 1; }
+      REPO="$2"; shift 2 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "error: unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -43,19 +51,32 @@ case "$COUNT" in
 esac
 [ "$COUNT" -ge 1 ] || { echo 'error: --count must be at least 1' >&2; exit 1; }
 
+# Resolve the script's own location through symlinks, then ask git which
+# worktree that path belongs to. Deriving the repo from the script rather than
+# from $PWD means a copied script cannot silently report a different checkout's
+# tags, and --show-toplevel keeps it correct when invoked from a subdirectory.
+if [ -z "$REPO" ]; then
+  script_path="${BASH_SOURCE[0]}"
+  if command -v readlink >/dev/null 2>&1; then
+    script_path="$(readlink -f "$script_path" 2>/dev/null || printf '%s' "$script_path")"
+  fi
+  script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+  REPO="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$script_dir")"
+fi
+
 # sort -V orders v2026.4.8 before v2026.4.13 (numeric), which a plain
 # lexicographic sort gets wrong.
 mapfile -t tags < <(
-  git ls-remote --tags --refs "$REMOTE" 2>/dev/null \
-    | awk '{print $2}' \
-    | sed 's|refs/tags/||' \
+  git -C "$REPO" tag --list 'v*' \
     | grep -E '^v[0-9]{4}\.[0-9]+\.[0-9]+(\.[0-9]+)?$' \
     | sort -V
 )
 
 total="${#tags[@]}"
 if [ "$total" -eq 0 ]; then
-  echo "error: no release tags found at $REMOTE" >&2
+  echo "error: no release tags found in $REPO" >&2
+  echo '       A shallow clone has no tags: fetch with tags (actions/checkout' >&2
+  echo '       with fetch-depth: 0, or fetch-tags: true).' >&2
   exit 1
 fi
 
