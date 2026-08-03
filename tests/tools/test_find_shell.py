@@ -8,7 +8,6 @@ when ``~/.bash_profile`` contained ``exec /bin/zsh -l``.
 import os
 import platform
 import subprocess
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -66,13 +65,18 @@ class TestFindShellPrefersUserShell:
 class TestFindShellWindowsBehavior:
     """On Windows, _find_shell always delegates to _find_bash."""
 
+    @pytest.mark.windows_only
     def test_windows_ignores_shell_env(self):
-        """On Windows, $SHELL is ignored — _find_shell delegates to _find_bash."""
-        with patch("tools.environments.local._IS_WINDOWS", True):
-            # Even if SHELL is set, it should be ignored on Windows
-            with patch.dict(os.environ, {"SHELL": "/usr/bin/zsh"}):
-                result = _find_shell()
-                assert result == _find_bash()
+        """On Windows, $SHELL is ignored — _find_shell delegates to _find_bash.
+
+        Windows-only: faking ``_IS_WINDOWS`` selected the branch but left
+        ``_find_bash`` resolving a POSIX bash, so the equality proved nothing
+        about Git-Bash resolution on the real host.
+        """
+        # Even if SHELL is set, it should be ignored on Windows
+        with patch.dict(os.environ, {"SHELL": "/usr/bin/zsh"}):
+            result = _find_shell()
+            assert result == _find_bash()
 
 
 class TestFindShellReturnsString:
@@ -101,10 +105,13 @@ class TestFindBashUnchanged:
 class TestFindBashSkipsBrokenCustomPath:
     """Stale HERMES_GIT_BASH_PATH must not brick Windows terminal startup."""
 
+    @pytest.mark.windows_only
     def test_falls_through_to_portable_when_custom_fails_probe(self, tmp_path, monkeypatch):
+        """Windows-only: the candidate ladder (HERMES_GIT_BASH_PATH →
+        %LOCALAPPDATA%\\hermes\\git → Program Files) only exists in
+        ``_find_bash``'s Windows branch."""
         import tools.environments.local as local_mod
 
-        monkeypatch.setattr(local_mod, "_IS_WINDOWS", True)
         local_mod._bash_starts_cache.clear()
 
         broken = tmp_path / "broken" / "bash.exe"
@@ -129,6 +136,9 @@ class TestGitBashExternalProgramProbe:
     """The Windows health check must exercise MSYS child-process creation."""
 
     def test_probe_runs_external_msys_programs(self, monkeypatch):
+        """``_bash_starts`` builds the same external-program probe argv on
+        every host, so this stays on the Linux runner with ``subprocess.run``
+        mocked — no platform faking needed."""
         import tools.environments.local as local_mod
 
         local_mod._bash_starts_cache.clear()
@@ -140,14 +150,17 @@ class TestGitBashExternalProgramProbe:
             return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
         monkeypatch.setattr(local_mod.subprocess, "run", fake_run)
-        monkeypatch.setattr(local_mod, "_IS_WINDOWS", True)
 
         assert local_mod._bash_starts(r"C:\Git\bin\bash.exe") is True
         assert calls[0][0][-1] == "/usr/bin/true; /usr/bin/cat --version >/dev/null"
 
+    @pytest.mark.windows_only
     def test_aslr_failure_surfaces_targeted_windows_command(
         self, tmp_path, monkeypatch
     ):
+        """Windows-only: the Mandatory-ASLR diagnostic is raised from
+        ``_find_bash``'s Windows candidate ladder and names PowerShell's
+        ``Set-ProcessMitigation`` — unreachable off Windows."""
         import tools.environments.local as local_mod
 
         local_mod._bash_starts_cache.clear()
@@ -156,7 +169,6 @@ class TestGitBashExternalProgramProbe:
         portable.parent.mkdir(parents=True)
         portable.write_text("", encoding="utf-8")
 
-        monkeypatch.setattr(local_mod, "_IS_WINDOWS", True)
         monkeypatch.setenv("HERMES_GIT_BASH_PATH", "")
         monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
         monkeypatch.setenv("ProgramFiles", str(tmp_path / "empty-program-files"))
@@ -181,8 +193,9 @@ class TestGitBashExternalProgramProbe:
         assert str(tmp_path / "hermes" / "git") in message
 
 
+@pytest.mark.macos_only
 @pytest.mark.skipif(
-    not os.path.isfile("/bin/bash") or sys.platform != "darwin",
+    not os.path.isfile("/bin/bash"),
     reason="reproduces the macOS system-bash-3.2 login-shell swallow",
 )
 class TestMacosLoginShellSwallowRegression:

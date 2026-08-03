@@ -1330,6 +1330,33 @@ Any test that reads or asserts about `package.json`,
 `package-lock.json`, `tsconfig.json`, `.ts`/`.tsx`/`.js`/`.mjs`/`.cjs`
 source files configuration belongs in the JS (vitest) test suite, not in `tests/*.py`.
 
+### Don't fake the host OS
+
+Hermes supports Linux, macOS and native Windows, and plenty of its behaviour
+genuinely differs per host. Those differences are tested by running on the
+host, not by patching `sys.platform`.
+
+```python
+@pytest.mark.linux_only
+@pytest.mark.macos_only
+@pytest.mark.windows_only
+```
+
+Things are host-independent can stay unmarked:
+unmarked:
+
+- **Pure functions that take a platform as data** —
+  `hidden_windows_child_options(opts, is_windows=True)` is input→output, not a
+  fake host. (Contrast: setting a module-level `IS_WINDOWS` flag and then
+  calling `windows_detach_flags()` *is* a fake.)
+- **Declaration/packaging invariants** — "pyproject declares `tzdata` with a
+  `sys_platform == 'win32'` marker" asserts about a file, not about runtime.
+
+The line: **if the test needs the interpreter to believe it is on another OS
+in order to pass, it belongs on that OS.**
+When one test body walks several platforms in sequence, split it.
+Keep the host-native arm on the Linux lane and move the other arm into its own marked test.
+
 ### Don't write change-detector tests
 
 A test is a **change-detector** if it fails whenever data that is **expected

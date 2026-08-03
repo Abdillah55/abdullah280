@@ -309,7 +309,7 @@ class TestUpdateCheckTimeoutDefaults:
     full reinstall fall-through during `hermes update`.
     """
 
-    def _captured_timeout(self, platform_name):
+    def _captured_timeout(self):
         from unittest.mock import MagicMock
         from tools.computer_use import cua_backend
 
@@ -323,17 +323,23 @@ class TestUpdateCheckTimeoutDefaults:
 
         with patch("tools.computer_use.cua_backend.resolve_cua_driver_cmd",
                    return_value="/x/cua-driver"), \
-             patch("tools.computer_use.cua_backend.sys.platform", platform_name), \
              patch("tools.computer_use.cua_backend.subprocess.run",
                    side_effect=fake_run):
             cua_backend.cua_driver_update_check()
         return captured.get("timeout")
 
+    @pytest.mark.windows_only
     def test_windows_default_is_generous(self):
-        assert self._captured_timeout("win32") == 25.0
+        """``windows_only``: the 25s default exists because a real Windows
+        first-spawn is delayed by Defender/SmartScreen scanning — a faked
+        platform asserted the constant, never the host it is chosen for.
+        """
+        assert self._captured_timeout() == 25.0
 
     def test_posix_default_unchanged(self):
-        assert self._captured_timeout("linux") == 8.0
+        # Unmarked: the POSIX default is what this (Linux) host already picks,
+        # so no platform faking is involved.
+        assert self._captured_timeout() == 8.0
 
     def test_explicit_timeout_wins(self):
         from unittest.mock import MagicMock
@@ -490,11 +496,15 @@ class TestPosixStaleInstallLockClear:
 
 
 class TestWindowsStaleInstallLockClearDispatch:
+    @pytest.mark.windows_only
     def test_windows_branch_uses_file_lock_probe(self):
+        """``windows_only``: which lock protocol applies IS the host fact under
+        test — on Linux the faked platform asserted the dispatch and skipped
+        the ``.install.lock.d`` directory that really exists here.
+        """
         from hermes_cli import tools_config
 
-        with patch.object(tools_config.sys, "platform", "win32"), \
-             patch.object(
+        with patch.object(
                  tools_config, "_clear_stale_windows_cua_install_lock"
              ) as clear_windows:
             tools_config._clear_stale_cua_install_lock()
@@ -502,10 +512,10 @@ class TestWindowsStaleInstallLockClearDispatch:
         clear_windows.assert_called_once_with()
 
 
-@pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="requires native Win32 FileShare semantics",
-)
+# ``windows_only`` rather than ``skipif(sys.platform != "win32")``: the
+# dedicated Windows CI job selects ``-m windows_only``, so a bare skipif left
+# these real-CreateFileW tests running on no host at all.
+@pytest.mark.windows_only
 class TestWindowsStaleInstallLockClear:
     def _make_lock(self, tmp_path):
         import os
@@ -918,7 +928,12 @@ class TestRunInstallerPinEnv:
 
 
 class TestWindowsAutostartRepair:
+    @pytest.mark.windows_only
     def test_existing_task_skips_elevated_powershell_repair(self):
+        """``windows_only``: ``_repair_cua_driver_autostart_windows`` returns
+        True unconditionally off Windows, so only the fake made the schtasks
+        probe run at all.
+        """
         from hermes_cli import tools_config
 
         calls = []
@@ -927,8 +942,7 @@ class TestWindowsAutostartRepair:
             calls.append((cmd, kwargs))
             return SimpleNamespace(returncode=0)
 
-        with patch.object(tools_config.sys, "platform", "win32"), \
-             patch("subprocess.run", side_effect=fake_run), \
+        with patch("subprocess.run", side_effect=fake_run), \
              patch.object(tools_config.shutil, "which") as which:
             ok = tools_config._repair_cua_driver_autostart_windows(
                 "cua-driver", verbose=False
@@ -978,7 +992,11 @@ class TestWindowsAutostartRepair:
         ]
         repair.assert_called_once_with("cua-driver", verbose=False)
 
+    @pytest.mark.windows_only
     def test_autostart_repair_quotes_username_space_path_via_file_path(self):
+        """``windows_only``: same early return off Windows — the elevated
+        PowerShell command string is only built on a real Windows host.
+        """
         from hermes_cli import tools_config
 
         calls = []
@@ -1000,8 +1018,7 @@ class TestWindowsAutostartRepair:
                 return SimpleNamespace(returncode=1)
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        with patch.object(tools_config.sys, "platform", "win32"), \
-             patch.object(tools_config.shutil, "which", side_effect=fake_which), \
+        with patch.object(tools_config.shutil, "which", side_effect=fake_which), \
              patch("subprocess.run", side_effect=fake_run), \
              patch.object(tools_config, "_print_warning"), \
              patch.object(tools_config, "_print_info"):

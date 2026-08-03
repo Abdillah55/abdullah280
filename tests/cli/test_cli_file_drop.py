@@ -169,7 +169,10 @@ class TestEscapedSpaces:
         assert result["remainder"] == "what is this?"
 
 
-    @pytest.mark.skipif(os.name != "nt", reason="Windows drive-letter URI contract")
+    # ``windows_only`` rather than ``skipif(os.name != "nt")``: the Windows CI
+    # job selects ``-m windows_only``, so a bare skipif would leave this
+    # skipped on Linux AND unselected there — dead on every host.
+    @pytest.mark.windows_only
     def test_windows_drive_letter_file_uri_drops_url_leading_slash(self, tmp_path):
         image = tmp_path / "drive-uri.png"
         image.write_bytes(b"\x89PNG\r\n\x1a\n")
