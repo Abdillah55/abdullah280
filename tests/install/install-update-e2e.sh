@@ -145,22 +145,39 @@ fi
 rm -rf -- "$SANDBOX_ROOT"
 
 # ── helpers ────────────────────────────────────────────────────────────────
+# Does the INSTALLED hermes accept FLAG on `hermes update`?
+#
+# Asked of the installed binary rather than parsed out of a release's source:
+# the update subcommand has lived in main.py, subcommands/update.py, and
+# update_cmd.py across the releases we sample, so any static parse is a guess
+# that silently rots. `hermes update --help` is the same surface a user meets,
+# and argparse prints every option it accepts.
+update_supports() {
+  local flag="$1"
+  in_sandbox "hermes update --help 2>&1" | grep -qF -- "$flag"
+}
+
+# Read a file out of REF, fetching the ref on demand when it is not local.
+# Returns non-zero if it cannot be resolved, which callers treat as "flag absent"
+# -- a slower or more conservative invocation, never a wrong one.
+ref_file() {
+  local ref="$1"
+  local path="$2"
+  git show "$ref:$path" 2>/dev/null && return 0
+  git fetch -q --depth 1 "$UPSTREAM_URL" "$ref" 2>/dev/null || return 1
+  git show "FETCH_HEAD:$path" 2>/dev/null
+}
+
 # Does the installer at REF accept FLAG? Read it out of that ref's own
 # install.sh rather than assuming this checkout's flag set: the point of the
 # matrix is to install releases from months back, whose installers predate
-# options we take for granted.
-#
-# The ref may not be fetched locally (the sandbox fetches it itself), so fetch
-# just the one blob on demand. Failing to resolve it returns false, which only
-# costs us a slower install, never a wrong result.
+# options we take for granted. (Unlike the updater, the installer is fetched
+# before anything is installed, so there is nothing to ask --help yet.)
 installer_supports() {
   local ref="$1"
   local flag="$2"
   local script=""
-  script="$(git show "$ref:scripts/install.sh" 2>/dev/null)" || {
-    git fetch -q --depth 1 "$UPSTREAM_URL" "$ref" 2>/dev/null || return 1
-    script="$(git show FETCH_HEAD:scripts/install.sh 2>/dev/null)" || return 1
-  }
+  script="$(ref_file "$ref" scripts/install.sh)" || return 1
   printf '%s' "$script" | grep -qF -- "$flag"
 }
 
@@ -249,9 +266,17 @@ require_hermes_works 'after install'
 case "$ROUTE" in
   update)
     step 'ROUTE: hermes update'
-    if ! in_sandbox "cd $INSTALL_DIR && hermes update --yes"; then
+    # `--yes` reaches the update subcommand only in later releases, and argparse
+    # rejects the whole invocation when it does not exist. Ask the installed
+    # hermes which it accepts; older ones read the prompt from stdin, so close it.
+    if update_supports --yes; then
+      update_cmd="hermes update --yes"
+    else
+      update_cmd="hermes update </dev/null"
+    fi
+    if ! in_sandbox "cd $INSTALL_DIR && $update_cmd"; then
       collect_sandbox_logs update
-      fail 'hermes update failed'
+      fail "hermes update failed ($update_cmd)"
     fi
     require_landed_on_target 'hermes update'
     require_hermes_works 'after hermes update'
