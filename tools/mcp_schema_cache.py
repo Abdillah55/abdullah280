@@ -1,6 +1,6 @@
 """Persistent MCP tool-schema cache for lazy server startup.
 
-Stores per-server tool manifests on disk so Hermes can register MCP tools
+Stores per-server tool manifests on disk so Nimro can register MCP tools
 into the agent snapshot without spawning the stdio child process at idle
 dashboard startup. Cache entries are keyed by server name + a fingerprint
 of the connection config (command/args/url/tools filters).
@@ -22,9 +22,9 @@ _cache_lock = threading.Lock()
 
 
 def _cache_path() -> Path:
-    from hermes_constants import get_hermes_home
+    from nimro_constants import get_nimro_home
 
-    return get_hermes_home() / "cache" / _CACHE_FILENAME
+    return get_nimro_home() / "cache" / _CACHE_FILENAME
 
 
 def config_fingerprint(config: dict) -> str:

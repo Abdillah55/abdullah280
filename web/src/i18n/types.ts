@@ -149,11 +149,11 @@ export interface Translations {
     starting: string;
     startedInBackground: string;
     stopped: string;
-    updateHermes: string;
-    updateHermesConfirmMessage?: string;
-    updateHermesConfirmNow?: string;
-    updateHermesConfirmTitle?: string;
-    updatingHermes: string;
+    updateNimro: string;
+    updateNimroConfirmMessage?: string;
+    updateNimroConfirmNow?: string;
+    updateNimroConfirmTitle?: string;
+    updatingNimro: string;
     waitingForOutput: string;
   };
 
@@ -583,7 +583,7 @@ export interface Translations {
     fontMono?: string;
   };
 
-  // ── Achievements plugin (plugins/hermes-achievements) ──
+  // ── Achievements plugin (plugins/nimro-achievements) ──
   achievements: {
     hero: {
       kicker: string;

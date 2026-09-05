@@ -15,10 +15,10 @@ def _reset_emitter():
 
 
 def test_gated_on_desktop(monkeypatch):
-    monkeypatch.delenv("HERMES_DESKTOP", raising=False)
+    monkeypatch.delenv("NIMRO_DESKTOP", raising=False)
     assert fp.check_focus_pane_requirements() is False
 
-    monkeypatch.setenv("HERMES_DESKTOP", "1")
+    monkeypatch.setenv("NIMRO_DESKTOP", "1")
     assert fp.check_focus_pane_requirements() is True
 
 

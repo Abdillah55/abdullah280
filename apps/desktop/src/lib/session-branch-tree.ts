@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@/types/hermes'
+import type { SessionInfo } from '@/types/nimro'
 
 export interface SidebarSessionEntry {
   branchStem?: string

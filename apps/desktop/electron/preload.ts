@@ -1,49 +1,49 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
-contextBridge.exposeInMainWorld('hermesDesktop', {
-  getConnection: profile => ipcRenderer.invoke('hermes:connection', profile),
-  revalidateConnection: () => ipcRenderer.invoke('hermes:connection:revalidate'),
-  touchBackend: profile => ipcRenderer.invoke('hermes:backend:touch', profile),
-  getGatewayWsUrl: profile => ipcRenderer.invoke('hermes:gateway:ws-url', profile),
-  openSessionWindow: (sessionId, opts) => ipcRenderer.invoke('hermes:window:openSession', sessionId, opts),
-  openWindow: () => ipcRenderer.invoke('hermes:window:openInstance'),
-  claimAmbientCue: key => ipcRenderer.invoke('hermes:ambient:claim', key),
+contextBridge.exposeInMainWorld('nimroDesktop', {
+  getConnection: profile => ipcRenderer.invoke('nimro:connection', profile),
+  revalidateConnection: () => ipcRenderer.invoke('nimro:connection:revalidate'),
+  touchBackend: profile => ipcRenderer.invoke('nimro:backend:touch', profile),
+  getGatewayWsUrl: profile => ipcRenderer.invoke('nimro:gateway:ws-url', profile),
+  openSessionWindow: (sessionId, opts) => ipcRenderer.invoke('nimro:window:openSession', sessionId, opts),
+  openWindow: () => ipcRenderer.invoke('nimro:window:openInstance'),
+  claimAmbientCue: key => ipcRenderer.invoke('nimro:ambient:claim', key),
   wakeIndicator: {
-    getState: () => ipcRenderer.invoke('hermes:wake-indicator:get'),
-    setState: state => ipcRenderer.send('hermes:wake-indicator:set', state),
+    getState: () => ipcRenderer.invoke('nimro:wake-indicator:get'),
+    setState: state => ipcRenderer.send('nimro:wake-indicator:set', state),
     onState: callback => {
       const listener = (_event, state) => callback(state)
-      ipcRenderer.on('hermes:wake-indicator:state', listener)
+      ipcRenderer.on('nimro:wake-indicator:state', listener)
 
-      return () => ipcRenderer.removeListener('hermes:wake-indicator:state', listener)
+      return () => ipcRenderer.removeListener('nimro:wake-indicator:state', listener)
     }
   },
   petOverlay: {
     // Main renderer → main process: window lifecycle + drag. `request` is
     // `{ bounds, screen }`; resolves with the screen bounds it actually used.
-    open: request => ipcRenderer.invoke('hermes:pet-overlay:open', request),
-    close: () => ipcRenderer.invoke('hermes:pet-overlay:close'),
-    setBounds: bounds => ipcRenderer.send('hermes:pet-overlay:set-bounds', bounds),
-    setIgnoreMouse: ignore => ipcRenderer.send('hermes:pet-overlay:ignore-mouse', ignore),
+    open: request => ipcRenderer.invoke('nimro:pet-overlay:open', request),
+    close: () => ipcRenderer.invoke('nimro:pet-overlay:close'),
+    setBounds: bounds => ipcRenderer.send('nimro:pet-overlay:set-bounds', bounds),
+    setIgnoreMouse: ignore => ipcRenderer.send('nimro:pet-overlay:ignore-mouse', ignore),
     // Flip the overlay focusable (and focus it) while the composer needs keys.
-    setFocusable: focusable => ipcRenderer.send('hermes:pet-overlay:set-focusable', focusable),
+    setFocusable: focusable => ipcRenderer.send('nimro:pet-overlay:set-focusable', focusable),
     // Main renderer → overlay (forwarded by main): push the latest pet state.
-    pushState: payload => ipcRenderer.send('hermes:pet-overlay:state', payload),
+    pushState: payload => ipcRenderer.send('nimro:pet-overlay:state', payload),
     // Overlay → main renderer (forwarded by main): pop back in / composer submit.
-    control: payload => ipcRenderer.send('hermes:pet-overlay:control', payload),
+    control: payload => ipcRenderer.send('nimro:pet-overlay:control', payload),
     // Overlay subscribes to state pushes.
     onState: callback => {
       const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:pet-overlay:state', listener)
+      ipcRenderer.on('nimro:pet-overlay:state', listener)
 
-      return () => ipcRenderer.removeListener('hermes:pet-overlay:state', listener)
+      return () => ipcRenderer.removeListener('nimro:pet-overlay:state', listener)
     },
     // Main renderer subscribes to overlay control messages.
     onControl: callback => {
       const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:pet-overlay:control', listener)
+      ipcRenderer.on('nimro:pet-overlay:control', listener)
 
-      return () => ipcRenderer.removeListener('hermes:pet-overlay:control', listener)
+      return () => ipcRenderer.removeListener('nimro:pet-overlay:control', listener)
     }
   },
   // Quick Entry: the global-hotkey mini composer window. Main owns the OS
@@ -51,75 +51,75 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   // and hands it back, and the primary renderer submits it through the normal
   // prompt path.
   quickEntry: {
-    getSettings: () => ipcRenderer.invoke('hermes:quick-entry:settings:get'),
-    setSettings: patch => ipcRenderer.invoke('hermes:quick-entry:settings:set', patch),
-    submit: payload => ipcRenderer.send('hermes:quick-entry:submit', payload),
-    dismiss: () => ipcRenderer.send('hermes:quick-entry:dismiss'),
+    getSettings: () => ipcRenderer.invoke('nimro:quick-entry:settings:get'),
+    setSettings: patch => ipcRenderer.invoke('nimro:quick-entry:settings:set', patch),
+    submit: payload => ipcRenderer.send('nimro:quick-entry:submit', payload),
+    dismiss: () => ipcRenderer.send('nimro:quick-entry:dismiss'),
     // Primary renderer → main → quick window: gateway connection state + the
     // recent-session options the target picker offers. Main caches the latest
     // payload so a freshly spawned quick window starts from truth.
-    pushState: payload => ipcRenderer.send('hermes:quick-entry:state', payload),
+    pushState: payload => ipcRenderer.send('nimro:quick-entry:state', payload),
     // Quick window subscribes to those pushes.
     onState: callback => {
       const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:quick-entry:state', listener)
+      ipcRenderer.on('nimro:quick-entry:state', listener)
 
-      return () => ipcRenderer.removeListener('hermes:quick-entry:state', listener)
+      return () => ipcRenderer.removeListener('nimro:quick-entry:state', listener)
     },
     // Main → primary renderer: a submit captured by the quick window.
     onSubmit: callback => {
       const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:quick-entry:submit', listener)
+      ipcRenderer.on('nimro:quick-entry:submit', listener)
 
-      return () => ipcRenderer.removeListener('hermes:quick-entry:submit', listener)
+      return () => ipcRenderer.removeListener('nimro:quick-entry:submit', listener)
     },
     // Main → quick window: you were just summoned (reset draft + refocus).
     onShown: callback => {
       const listener = () => callback()
-      ipcRenderer.on('hermes:quick-entry:shown', listener)
+      ipcRenderer.on('nimro:quick-entry:shown', listener)
 
-      return () => ipcRenderer.removeListener('hermes:quick-entry:shown', listener)
+      return () => ipcRenderer.removeListener('nimro:quick-entry:shown', listener)
     }
   },
-  getBootProgress: () => ipcRenderer.invoke('hermes:boot-progress:get'),
-  getConnectionConfig: profile => ipcRenderer.invoke('hermes:connection-config:get', profile),
-  saveConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:save', payload),
-  applyConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:apply', payload),
-  testConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:test', payload),
-  sshConfigHosts: () => ipcRenderer.invoke('hermes:ssh-config:hosts'),
-  sshResolveHost: host => ipcRenderer.invoke('hermes:ssh-config:resolve', host),
-  probeConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:probe', remoteUrl),
-  oauthLoginConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-login', remoteUrl),
-  oauthLogoutConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-logout', remoteUrl),
-  // Hermes Cloud: one portal login powers discovery + silent per-agent sign-in
+  getBootProgress: () => ipcRenderer.invoke('nimro:boot-progress:get'),
+  getConnectionConfig: profile => ipcRenderer.invoke('nimro:connection-config:get', profile),
+  saveConnectionConfig: payload => ipcRenderer.invoke('nimro:connection-config:save', payload),
+  applyConnectionConfig: payload => ipcRenderer.invoke('nimro:connection-config:apply', payload),
+  testConnectionConfig: payload => ipcRenderer.invoke('nimro:connection-config:test', payload),
+  sshConfigHosts: () => ipcRenderer.invoke('nimro:ssh-config:hosts'),
+  sshResolveHost: host => ipcRenderer.invoke('nimro:ssh-config:resolve', host),
+  probeConnectionConfig: remoteUrl => ipcRenderer.invoke('nimro:connection-config:probe', remoteUrl),
+  oauthLoginConnectionConfig: remoteUrl => ipcRenderer.invoke('nimro:connection-config:oauth-login', remoteUrl),
+  oauthLogoutConnectionConfig: remoteUrl => ipcRenderer.invoke('nimro:connection-config:oauth-logout', remoteUrl),
+  // Nimro Cloud: one portal login powers discovery + silent per-agent sign-in
   // (cloud-auto-discovery Phase 3).
   cloud: {
-    status: () => ipcRenderer.invoke('hermes:cloud:status'),
-    login: () => ipcRenderer.invoke('hermes:cloud:login'),
-    logout: () => ipcRenderer.invoke('hermes:cloud:logout'),
-    discover: org => ipcRenderer.invoke('hermes:cloud:discover', org),
-    agentSignIn: dashboardUrl => ipcRenderer.invoke('hermes:cloud:agent-sign-in', dashboardUrl)
+    status: () => ipcRenderer.invoke('nimro:cloud:status'),
+    login: () => ipcRenderer.invoke('nimro:cloud:login'),
+    logout: () => ipcRenderer.invoke('nimro:cloud:logout'),
+    discover: org => ipcRenderer.invoke('nimro:cloud:discover', org),
+    agentSignIn: dashboardUrl => ipcRenderer.invoke('nimro:cloud:agent-sign-in', dashboardUrl)
   },
   profile: {
-    get: () => ipcRenderer.invoke('hermes:profile:get'),
-    set: name => ipcRenderer.invoke('hermes:profile:set', name)
+    get: () => ipcRenderer.invoke('nimro:profile:get'),
+    set: name => ipcRenderer.invoke('nimro:profile:set', name)
   },
-  api: request => ipcRenderer.invoke('hermes:api', request),
-  notify: payload => ipcRenderer.invoke('hermes:notify', payload),
-  requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),
-  readFileDataUrl: filePath => ipcRenderer.invoke('hermes:readFileDataUrl', filePath),
-  readFileDataUrlForAttach: filePath => ipcRenderer.invoke('hermes:readFileDataUrlForAttach', filePath),
+  api: request => ipcRenderer.invoke('nimro:api', request),
+  notify: payload => ipcRenderer.invoke('nimro:notify', payload),
+  requestMicrophoneAccess: () => ipcRenderer.invoke('nimro:requestMicrophoneAccess'),
+  readFileDataUrl: filePath => ipcRenderer.invoke('nimro:readFileDataUrl', filePath),
+  readFileDataUrlForAttach: filePath => ipcRenderer.invoke('nimro:readFileDataUrlForAttach', filePath),
   dataUrlReadMax: {
-    get: () => ipcRenderer.invoke('hermes:data-url-read-max:get'),
-    set: maxMb => ipcRenderer.invoke('hermes:data-url-read-max:set', maxMb)
+    get: () => ipcRenderer.invoke('nimro:data-url-read-max:get'),
+    set: maxMb => ipcRenderer.invoke('nimro:data-url-read-max:set', maxMb)
   },
-  readFileText: filePath => ipcRenderer.invoke('hermes:readFileText', filePath),
-  selectPaths: options => ipcRenderer.invoke('hermes:selectPaths', options),
-  writeClipboard: text => ipcRenderer.invoke('hermes:writeClipboard', text),
-  readClipboard: () => ipcRenderer.invoke('hermes:readClipboard'),
-  saveImageFromUrl: url => ipcRenderer.invoke('hermes:saveImageFromUrl', url),
-  saveImageBuffer: (data, ext) => ipcRenderer.invoke('hermes:saveImageBuffer', { data, ext }),
-  saveClipboardImage: () => ipcRenderer.invoke('hermes:saveClipboardImage'),
+  readFileText: filePath => ipcRenderer.invoke('nimro:readFileText', filePath),
+  selectPaths: options => ipcRenderer.invoke('nimro:selectPaths', options),
+  writeClipboard: text => ipcRenderer.invoke('nimro:writeClipboard', text),
+  readClipboard: () => ipcRenderer.invoke('nimro:readClipboard'),
+  saveImageFromUrl: url => ipcRenderer.invoke('nimro:saveImageFromUrl', url),
+  saveImageBuffer: (data, ext) => ipcRenderer.invoke('nimro:saveImageBuffer', { data, ext }),
+  saveClipboardImage: () => ipcRenderer.invoke('nimro:saveClipboardImage'),
   getPathForFile: file => {
     try {
       return webUtils.getPathForFile(file) || ''
@@ -127,89 +127,89 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
       return ''
     }
   },
-  normalizePreviewTarget: (target, baseDir) => ipcRenderer.invoke('hermes:normalizePreviewTarget', target, baseDir),
-  watchPreviewFile: url => ipcRenderer.invoke('hermes:watchPreviewFile', url),
-  watchDirectory: dir => ipcRenderer.invoke('hermes:watchDirectory', dir),
-  stopPreviewFileWatch: id => ipcRenderer.invoke('hermes:stopPreviewFileWatch', id),
-  setActiveWork: payload => ipcRenderer.send('hermes:active-work', payload),
-  setTitleBarTheme: payload => ipcRenderer.send('hermes:titlebar-theme', payload),
-  setNativeTheme: mode => ipcRenderer.send('hermes:native-theme', mode),
-  setTranslucency: payload => ipcRenderer.send('hermes:translucency', payload),
-  setKeepAwake: on => ipcRenderer.send('hermes:keep-awake', on),
-  setPreviewShortcutActive: active => ipcRenderer.send('hermes:previewShortcutActive', Boolean(active)),
-  openExternal: url => ipcRenderer.invoke('hermes:openExternal', url),
-  openPreviewInBrowser: url => ipcRenderer.invoke('hermes:openPreviewInBrowser', url),
-  fetchLinkTitle: url => ipcRenderer.invoke('hermes:fetchLinkTitle', url),
-  sanitizeWorkspaceCwd: cwd => ipcRenderer.invoke('hermes:workspace:sanitize', cwd),
+  normalizePreviewTarget: (target, baseDir) => ipcRenderer.invoke('nimro:normalizePreviewTarget', target, baseDir),
+  watchPreviewFile: url => ipcRenderer.invoke('nimro:watchPreviewFile', url),
+  watchDirectory: dir => ipcRenderer.invoke('nimro:watchDirectory', dir),
+  stopPreviewFileWatch: id => ipcRenderer.invoke('nimro:stopPreviewFileWatch', id),
+  setActiveWork: payload => ipcRenderer.send('nimro:active-work', payload),
+  setTitleBarTheme: payload => ipcRenderer.send('nimro:titlebar-theme', payload),
+  setNativeTheme: mode => ipcRenderer.send('nimro:native-theme', mode),
+  setTranslucency: payload => ipcRenderer.send('nimro:translucency', payload),
+  setKeepAwake: on => ipcRenderer.send('nimro:keep-awake', on),
+  setPreviewShortcutActive: active => ipcRenderer.send('nimro:previewShortcutActive', Boolean(active)),
+  openExternal: url => ipcRenderer.invoke('nimro:openExternal', url),
+  openPreviewInBrowser: url => ipcRenderer.invoke('nimro:openPreviewInBrowser', url),
+  fetchLinkTitle: url => ipcRenderer.invoke('nimro:fetchLinkTitle', url),
+  sanitizeWorkspaceCwd: cwd => ipcRenderer.invoke('nimro:workspace:sanitize', cwd),
   settings: {
-    getDefaultProjectDir: () => ipcRenderer.invoke('hermes:setting:defaultProjectDir:get'),
-    setDefaultProjectDir: dir => ipcRenderer.invoke('hermes:setting:defaultProjectDir:set', dir),
-    pickDefaultProjectDir: () => ipcRenderer.invoke('hermes:setting:defaultProjectDir:pick')
+    getDefaultProjectDir: () => ipcRenderer.invoke('nimro:setting:defaultProjectDir:get'),
+    setDefaultProjectDir: dir => ipcRenderer.invoke('nimro:setting:defaultProjectDir:set', dir),
+    pickDefaultProjectDir: () => ipcRenderer.invoke('nimro:setting:defaultProjectDir:pick')
   },
   zoom: {
     // Current zoom of this window, as { level, percent }.
-    get: () => ipcRenderer.invoke('hermes:zoom:get'),
-    setPercent: percent => ipcRenderer.send('hermes:zoom:set-percent', percent),
+    get: () => ipcRenderer.invoke('nimro:zoom:get'),
+    setPercent: percent => ipcRenderer.send('nimro:zoom:set-percent', percent),
     // Fires on every zoom change, including the Ctrl/Cmd +/-/0 shortcuts,
     // so the settings UI can stay in sync with the keyboard.
     onChanged: callback => {
       const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:zoom:changed', listener)
+      ipcRenderer.on('nimro:zoom:changed', listener)
 
-      return () => ipcRenderer.removeListener('hermes:zoom:changed', listener)
+      return () => ipcRenderer.removeListener('nimro:zoom:changed', listener)
     }
   },
-  revealLogs: () => ipcRenderer.invoke('hermes:logs:reveal'),
-  getRecentLogs: () => ipcRenderer.invoke('hermes:logs:recent'),
-  readDir: dirPath => ipcRenderer.invoke('hermes:fs:readDir', dirPath),
-  gitRoot: startPath => ipcRenderer.invoke('hermes:fs:gitRoot', startPath),
-  revealPath: targetPath => ipcRenderer.invoke('hermes:fs:reveal', targetPath),
-  openDir: dirPath => ipcRenderer.invoke('hermes:fs:openDir', dirPath),
-  desktopPluginsRoot: () => ipcRenderer.invoke('hermes:fs:desktopPluginsRoot'),
-  renamePath: (targetPath, newName) => ipcRenderer.invoke('hermes:fs:rename', targetPath, newName),
-  writeTextFile: (filePath, content) => ipcRenderer.invoke('hermes:fs:writeText', filePath, content),
-  trashPath: targetPath => ipcRenderer.invoke('hermes:fs:trash', targetPath),
+  revealLogs: () => ipcRenderer.invoke('nimro:logs:reveal'),
+  getRecentLogs: () => ipcRenderer.invoke('nimro:logs:recent'),
+  readDir: dirPath => ipcRenderer.invoke('nimro:fs:readDir', dirPath),
+  gitRoot: startPath => ipcRenderer.invoke('nimro:fs:gitRoot', startPath),
+  revealPath: targetPath => ipcRenderer.invoke('nimro:fs:reveal', targetPath),
+  openDir: dirPath => ipcRenderer.invoke('nimro:fs:openDir', dirPath),
+  desktopPluginsRoot: () => ipcRenderer.invoke('nimro:fs:desktopPluginsRoot'),
+  renamePath: (targetPath, newName) => ipcRenderer.invoke('nimro:fs:rename', targetPath, newName),
+  writeTextFile: (filePath, content) => ipcRenderer.invoke('nimro:fs:writeText', filePath, content),
+  trashPath: targetPath => ipcRenderer.invoke('nimro:fs:trash', targetPath),
   git: {
-    worktreeList: repoPath => ipcRenderer.invoke('hermes:git:worktreeList', repoPath),
-    worktreeAdd: (repoPath, options) => ipcRenderer.invoke('hermes:git:worktreeAdd', repoPath, options),
+    worktreeList: repoPath => ipcRenderer.invoke('nimro:git:worktreeList', repoPath),
+    worktreeAdd: (repoPath, options) => ipcRenderer.invoke('nimro:git:worktreeAdd', repoPath, options),
     worktreeRemove: (repoPath, worktreePath, options) =>
-      ipcRenderer.invoke('hermes:git:worktreeRemove', repoPath, worktreePath, options),
-    branchSwitch: (repoPath, branch) => ipcRenderer.invoke('hermes:git:branchSwitch', repoPath, branch),
-    branchList: repoPath => ipcRenderer.invoke('hermes:git:branchList', repoPath),
-    baseBranchList: repoPath => ipcRenderer.invoke('hermes:git:baseBranchList', repoPath),
-    repoStatus: repoPath => ipcRenderer.invoke('hermes:git:repoStatus', repoPath),
-    fileDiff: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:fileDiff', repoPath, filePath),
-    scanRepos: (roots, options) => ipcRenderer.invoke('hermes:git:scanRepos', roots, options),
+      ipcRenderer.invoke('nimro:git:worktreeRemove', repoPath, worktreePath, options),
+    branchSwitch: (repoPath, branch) => ipcRenderer.invoke('nimro:git:branchSwitch', repoPath, branch),
+    branchList: repoPath => ipcRenderer.invoke('nimro:git:branchList', repoPath),
+    baseBranchList: repoPath => ipcRenderer.invoke('nimro:git:baseBranchList', repoPath),
+    repoStatus: repoPath => ipcRenderer.invoke('nimro:git:repoStatus', repoPath),
+    fileDiff: (repoPath, filePath) => ipcRenderer.invoke('nimro:git:fileDiff', repoPath, filePath),
+    scanRepos: (roots, options) => ipcRenderer.invoke('nimro:git:scanRepos', roots, options),
     review: {
-      list: (repoPath, scope, baseRef) => ipcRenderer.invoke('hermes:git:review:list', repoPath, scope, baseRef),
+      list: (repoPath, scope, baseRef) => ipcRenderer.invoke('nimro:git:review:list', repoPath, scope, baseRef),
       diff: (repoPath, filePath, scope, baseRef, staged) =>
-        ipcRenderer.invoke('hermes:git:review:diff', repoPath, filePath, scope, baseRef, staged),
-      stage: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:stage', repoPath, filePath),
-      unstage: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:unstage', repoPath, filePath),
-      revert: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:revert', repoPath, filePath),
-      revParse: (repoPath, ref) => ipcRenderer.invoke('hermes:git:review:revParse', repoPath, ref),
-      commit: (repoPath, message, push) => ipcRenderer.invoke('hermes:git:review:commit', repoPath, message, push),
-      commitContext: repoPath => ipcRenderer.invoke('hermes:git:review:commitContext', repoPath),
-      push: repoPath => ipcRenderer.invoke('hermes:git:review:push', repoPath),
-      shipInfo: repoPath => ipcRenderer.invoke('hermes:git:review:shipInfo', repoPath),
-      createPr: repoPath => ipcRenderer.invoke('hermes:git:review:createPr', repoPath)
+        ipcRenderer.invoke('nimro:git:review:diff', repoPath, filePath, scope, baseRef, staged),
+      stage: (repoPath, filePath) => ipcRenderer.invoke('nimro:git:review:stage', repoPath, filePath),
+      unstage: (repoPath, filePath) => ipcRenderer.invoke('nimro:git:review:unstage', repoPath, filePath),
+      revert: (repoPath, filePath) => ipcRenderer.invoke('nimro:git:review:revert', repoPath, filePath),
+      revParse: (repoPath, ref) => ipcRenderer.invoke('nimro:git:review:revParse', repoPath, ref),
+      commit: (repoPath, message, push) => ipcRenderer.invoke('nimro:git:review:commit', repoPath, message, push),
+      commitContext: repoPath => ipcRenderer.invoke('nimro:git:review:commitContext', repoPath),
+      push: repoPath => ipcRenderer.invoke('nimro:git:review:push', repoPath),
+      shipInfo: repoPath => ipcRenderer.invoke('nimro:git:review:shipInfo', repoPath),
+      createPr: repoPath => ipcRenderer.invoke('nimro:git:review:createPr', repoPath)
     }
   },
   terminal: {
-    cwd: id => ipcRenderer.invoke('hermes:terminal:cwd', id),
-    dispose: id => ipcRenderer.invoke('hermes:terminal:dispose', id),
-    resize: (id, size) => ipcRenderer.invoke('hermes:terminal:resize', id, size),
-    start: options => ipcRenderer.invoke('hermes:terminal:start', options),
-    write: (id, data) => ipcRenderer.invoke('hermes:terminal:write', id, data),
+    cwd: id => ipcRenderer.invoke('nimro:terminal:cwd', id),
+    dispose: id => ipcRenderer.invoke('nimro:terminal:dispose', id),
+    resize: (id, size) => ipcRenderer.invoke('nimro:terminal:resize', id, size),
+    start: options => ipcRenderer.invoke('nimro:terminal:start', options),
+    write: (id, data) => ipcRenderer.invoke('nimro:terminal:write', id, data),
     onData: (id, callback) => {
-      const channel = `hermes:terminal:${id}:data`
+      const channel = `nimro:terminal:${id}:data`
       const listener = (_event, payload) => callback(payload)
       ipcRenderer.on(channel, listener)
 
       return () => ipcRenderer.removeListener(channel, listener)
     },
     onExit: (id, callback) => {
-      const channel = `hermes:terminal:${id}:exit`
+      const channel = `nimro:terminal:${id}:exit`
       const listener = (_event, payload) => callback(payload)
       ipcRenderer.on(channel, listener)
 
@@ -218,124 +218,124 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   },
   onClosePreviewRequested: callback => {
     const listener = () => callback()
-    ipcRenderer.on('hermes:close-preview-requested', listener)
+    ipcRenderer.on('nimro:close-preview-requested', listener)
 
-    return () => ipcRenderer.removeListener('hermes:close-preview-requested', listener)
+    return () => ipcRenderer.removeListener('nimro:close-preview-requested', listener)
   },
   onOpenFolderRequested: callback => {
     const listener = () => callback()
-    ipcRenderer.on('hermes:open-folder-requested', listener)
+    ipcRenderer.on('nimro:open-folder-requested', listener)
 
-    return () => ipcRenderer.removeListener('hermes:open-folder-requested', listener)
+    return () => ipcRenderer.removeListener('nimro:open-folder-requested', listener)
   },
   onOpenUpdatesRequested: callback => {
     const listener = () => callback()
-    ipcRenderer.on('hermes:open-updates', listener)
+    ipcRenderer.on('nimro:open-updates', listener)
 
-    return () => ipcRenderer.removeListener('hermes:open-updates', listener)
+    return () => ipcRenderer.removeListener('nimro:open-updates', listener)
   },
   onDeepLink: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:deep-link', listener)
+    ipcRenderer.on('nimro:deep-link', listener)
 
-    return () => ipcRenderer.removeListener('hermes:deep-link', listener)
+    return () => ipcRenderer.removeListener('nimro:deep-link', listener)
   },
-  signalDeepLinkReady: () => ipcRenderer.invoke('hermes:deep-link-ready'),
+  signalDeepLinkReady: () => ipcRenderer.invoke('nimro:deep-link-ready'),
   onWindowStateChanged: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:window-state-changed', listener)
+    ipcRenderer.on('nimro:window-state-changed', listener)
 
-    return () => ipcRenderer.removeListener('hermes:window-state-changed', listener)
+    return () => ipcRenderer.removeListener('nimro:window-state-changed', listener)
   },
   onFocusSession: callback => {
     const listener = (_event, sessionId) => callback(sessionId)
-    ipcRenderer.on('hermes:focus-session', listener)
+    ipcRenderer.on('nimro:focus-session', listener)
 
-    return () => ipcRenderer.removeListener('hermes:focus-session', listener)
+    return () => ipcRenderer.removeListener('nimro:focus-session', listener)
   },
   onNotificationAction: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:notification-action', listener)
+    ipcRenderer.on('nimro:notification-action', listener)
 
-    return () => ipcRenderer.removeListener('hermes:notification-action', listener)
+    return () => ipcRenderer.removeListener('nimro:notification-action', listener)
   },
   onPreviewFileChanged: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:preview-file-changed', listener)
+    ipcRenderer.on('nimro:preview-file-changed', listener)
 
-    return () => ipcRenderer.removeListener('hermes:preview-file-changed', listener)
+    return () => ipcRenderer.removeListener('nimro:preview-file-changed', listener)
   },
   onBackendExit: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:backend-exit', listener)
+    ipcRenderer.on('nimro:backend-exit', listener)
 
-    return () => ipcRenderer.removeListener('hermes:backend-exit', listener)
+    return () => ipcRenderer.removeListener('nimro:backend-exit', listener)
   },
   // Soft gateway-mode apply finished tearing down the primary backend. Renderer
   // should wipe session lists + re-dial without a window reload.
   onConnectionApplied: callback => {
     const listener = () => callback()
-    ipcRenderer.on('hermes:connection:applied', listener)
+    ipcRenderer.on('nimro:connection:applied', listener)
 
-    return () => ipcRenderer.removeListener('hermes:connection:applied', listener)
+    return () => ipcRenderer.removeListener('nimro:connection:applied', listener)
   },
   onPowerResume: callback => {
     const listener = () => callback()
-    ipcRenderer.on('hermes:power-resume', listener)
+    ipcRenderer.on('nimro:power-resume', listener)
 
-    return () => ipcRenderer.removeListener('hermes:power-resume', listener)
+    return () => ipcRenderer.removeListener('nimro:power-resume', listener)
   },
   // AC ↔ battery transitions; renderers slow their backstop polls on battery.
-  getOnBattery: () => ipcRenderer.invoke('hermes:power-battery:get'),
+  getOnBattery: () => ipcRenderer.invoke('nimro:power-battery:get'),
   onBatteryChanged: callback => {
     const listener = (_event, onBattery) => callback(Boolean(onBattery))
-    ipcRenderer.on('hermes:power-battery', listener)
+    ipcRenderer.on('nimro:power-battery', listener)
 
-    return () => ipcRenderer.removeListener('hermes:power-battery', listener)
+    return () => ipcRenderer.removeListener('nimro:power-battery', listener)
   },
   onBootProgress: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:boot-progress', listener)
+    ipcRenderer.on('nimro:boot-progress', listener)
 
-    return () => ipcRenderer.removeListener('hermes:boot-progress', listener)
+    return () => ipcRenderer.removeListener('nimro:boot-progress', listener)
   },
   // First-launch bootstrap progress -- emitted by the install.ps1 stage
   // runner in main.ts (apps/desktop/electron/bootstrap-runner.ts).
   // Renderer's install overlay subscribes to live events and queries the
   // current snapshot via getBootstrapState() to recover after a devtools
   // reload mid-bootstrap.
-  getBootstrapState: () => ipcRenderer.invoke('hermes:bootstrap:get'),
-  continueBootstrapLocal: () => ipcRenderer.invoke('hermes:bootstrap:continue-local'),
-  resetBootstrap: () => ipcRenderer.invoke('hermes:bootstrap:reset'),
-  repairBootstrap: () => ipcRenderer.invoke('hermes:bootstrap:repair'),
-  cancelBootstrap: () => ipcRenderer.invoke('hermes:bootstrap:cancel'),
+  getBootstrapState: () => ipcRenderer.invoke('nimro:bootstrap:get'),
+  continueBootstrapLocal: () => ipcRenderer.invoke('nimro:bootstrap:continue-local'),
+  resetBootstrap: () => ipcRenderer.invoke('nimro:bootstrap:reset'),
+  repairBootstrap: () => ipcRenderer.invoke('nimro:bootstrap:repair'),
+  cancelBootstrap: () => ipcRenderer.invoke('nimro:bootstrap:cancel'),
   onBootstrapEvent: callback => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('hermes:bootstrap:event', listener)
+    ipcRenderer.on('nimro:bootstrap:event', listener)
 
-    return () => ipcRenderer.removeListener('hermes:bootstrap:event', listener)
+    return () => ipcRenderer.removeListener('nimro:bootstrap:event', listener)
   },
-  getVersion: () => ipcRenderer.invoke('hermes:version'),
-  getRemoteDisplayReason: () => ipcRenderer.invoke('hermes:get-remote-display-reason'),
+  getVersion: () => ipcRenderer.invoke('nimro:version'),
+  getRemoteDisplayReason: () => ipcRenderer.invoke('nimro:get-remote-display-reason'),
   uninstall: {
-    summary: () => ipcRenderer.invoke('hermes:uninstall:summary'),
-    run: mode => ipcRenderer.invoke('hermes:uninstall:run', { mode })
+    summary: () => ipcRenderer.invoke('nimro:uninstall:summary'),
+    run: mode => ipcRenderer.invoke('nimro:uninstall:run', { mode })
   },
   updates: {
-    check: () => ipcRenderer.invoke('hermes:updates:check'),
-    apply: opts => ipcRenderer.invoke('hermes:updates:apply', opts),
-    getBranch: () => ipcRenderer.invoke('hermes:updates:branch:get'),
-    setBranch: name => ipcRenderer.invoke('hermes:updates:branch:set', name),
+    check: () => ipcRenderer.invoke('nimro:updates:check'),
+    apply: opts => ipcRenderer.invoke('nimro:updates:apply', opts),
+    getBranch: () => ipcRenderer.invoke('nimro:updates:branch:get'),
+    setBranch: name => ipcRenderer.invoke('nimro:updates:branch:set', name),
     onProgress: callback => {
       const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:updates:progress', listener)
+      ipcRenderer.on('nimro:updates:progress', listener)
 
-      return () => ipcRenderer.removeListener('hermes:updates:progress', listener)
+      return () => ipcRenderer.removeListener('nimro:updates:progress', listener)
     }
   },
   themes: {
-    fetchMarketplace: id => ipcRenderer.invoke('hermes:vscode-theme:fetch', id),
-    searchMarketplace: query => ipcRenderer.invoke('hermes:vscode-theme:search', query)
+    fetchMarketplace: id => ipcRenderer.invoke('nimro:vscode-theme:fetch', id),
+    searchMarketplace: query => ipcRenderer.invoke('nimro:vscode-theme:search', query)
   },
   // Find-in-page (Ctrl/Cmd+F): delegates to Electron's
   // webContents.findInPage on the IPC sender's window so a Cmd+F pressed
@@ -343,12 +343,12 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   // `onFoundInPage` returns the unsubscribe fn; the renderer wires it via
   // `initFindInPageListener` in store/find-in-page.ts and tears it down
   // when the FindBar unmounts.
-  findInPage: (query, options) => ipcRenderer.invoke('hermes:find-in-page', query, options),
-  stopFindInPage: () => ipcRenderer.invoke('hermes:stop-find-in-page'),
+  findInPage: (query, options) => ipcRenderer.invoke('nimro:find-in-page', query, options),
+  stopFindInPage: () => ipcRenderer.invoke('nimro:stop-find-in-page'),
   onFoundInPage: callback => {
     const listener = (_event, result) => callback(result)
-    ipcRenderer.on('hermes:found-in-page', listener)
+    ipcRenderer.on('nimro:found-in-page', listener)
 
-    return () => ipcRenderer.removeListener('hermes:found-in-page', listener)
+    return () => ipcRenderer.removeListener('nimro:found-in-page', listener)
   }
 })

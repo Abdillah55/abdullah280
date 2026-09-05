@@ -1,1 +1,1 @@
-# Hermes plugins package
+# Nimro plugins package
